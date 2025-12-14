@@ -1,0 +1,19 @@
+{
+    "app": {
+        "name": "AgentAI",
+        "version": "1.0.0",
+        "debug": false
+    },
+    "database": {
+        "server": "ic-dbtest-east-server1.database.windows.net"
+    },
+    "ai":{
+        "base_url": "https://ca-pri-playground2-dev.openai.azure.com",
+        "api_version": "2025-01-01",
+        "model_name": "gpt-4o-mini"
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "app.log"
+    }
+}
