@@ -34,7 +34,7 @@ class DatabaseConnection:
             f"Driver={{ODBC Driver 17 for SQL Server}};"
             f"Server=tcp:{server},1433;"
             f"Database={database};"
-            f"Authentication=ActiveDirectoryInteractive;"
+            f"Authentication=ActiveDirectoryMsi;"
         )
         
         try:
@@ -74,7 +74,27 @@ class DatabaseConnection:
                 self.cursor.execute(query, params)
             else:
                 self.cursor.execute(query)
-            return self.cursor.fetchall()
+            
+            # Collect all result sets from stored procedure
+            results = []
+            
+            # Check if the cursor has a description (i.e., has result columns)
+            if self.cursor.description:
+                results = self.cursor.fetchall()
+                print(f"Found {len(results)} rows in first result set")
+            
+            # Try to get additional result sets (stored procedures may have multiple)
+            while self.cursor.nextset():
+                if self.cursor.description:
+                    additional_results = self.cursor.fetchall()
+                    print(f"Found {len(additional_results)} rows in additional result set")
+                    # If we didn't get results from first set, use this one
+                    if not results:
+                        results = additional_results
+                    else:
+                        results.extend(additional_results)
+            
+            return results
         except pyodbc.Error as e:
             raise Exception(f"Query execution failed: {e}")
     
@@ -129,29 +149,29 @@ def get_database_connection(biller_id: int) -> DatabaseConnection:
 # Example usage
 if __name__ == "__main__":
     # Using context manager (recommended)
-    biller_id = 123
+    biller_id = 1537
     
     try:
         with DatabaseConnection(biller_id) as db:
-            # Execute a query
-            results = db.execute_query("SELECT TOP 5 * FROM YourTable")
+            # Execute a query - Note: single value tuple needs trailing comma
+            results = db.execute_query("EXEC dbo.selCustomerProfileSummary @CustomerID = ?", (7984,))
             for row in results:
                 print(row)
             
             # Execute a non-query
-            rows_affected = db.execute_non_query(
-                "UPDATE YourTable SET column = ? WHERE id = ?",
-                ('value', 1)
-            )
-            print(f"Rows affected: {rows_affected}")
+            # rows_affected = db.execute_non_query(
+            #     "UPDATE YourTable SET column = ? WHERE id = ?",
+            #     ('value', 1)
+            # )
+            # print(f"Rows affected: {rows_affected}")
     except Exception as e:
         print(f"Database error: {e}")
     
     # Or manual connection management
-    db = DatabaseConnection(biller_id)
-    try:
-        db.connect()
-        results = db.execute_query("SELECT COUNT(*) FROM YourTable")
-        print(f"Total rows: {results[0][0]}")
-    finally:
-        db.disconnect()
+    # db = DatabaseConnection(biller_id)
+    # try:
+    #     db.connect()
+    #     results = db.execute_query("SELECT COUNT(*) FROM YourTable")
+    #     print(f"Total rows: {results[0][0]}")
+    # finally:
+    #     db.disconnect()

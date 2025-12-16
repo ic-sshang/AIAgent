@@ -8,9 +8,9 @@
         "server": "ic-dbtest-east-server1.database.windows.net"
     },
     "ai":{
-        "base_url": "https://ca-pri-playground2-dev.openai.azure.com",
-        "api_version": "2025-01-01",
-        "model_name": "gpt-4o-mini"
+        "base_url": "https://ca-pri-playground2-dev.openai.azure.com/",
+        "api_version": "2025-01-01-preview",
+        "model_name": "cd-pri-playground2-dev"
     },
     "logging": {
         "level": "INFO",

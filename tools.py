@@ -53,9 +53,12 @@ class StoredProcedureTool(BaseTool):
         if param_parts:
             params_string = ', '.join(param_parts)
             query = f"EXEC {self.stored_procedure} {params_string}"
-            return self.db_connection.execute_query(query, tuple(param_values))
+            print(f"Executing query: {query} with values: {param_values}")
+            # Convert list to tuple - works for single or multiple values
+            return self.db_connection.execute_query(query, tuple(param_values) if param_values else None)
         else:
             query = f"EXEC {self.stored_procedure}"
+            print(f"Executing query: {query} with no parameters")
             return self.db_connection.execute_query(query)
 
 
@@ -101,7 +104,7 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
     ))
     
     registry.register(StoredProcedureTool(
-        name='Search Customers',
+        name='SearchCustomers',
         description='Search customers by account number, customer name, email, invoice number',
         stored_procedure='dbo.selBillerCustomerSearchBP',
         parameters=[
@@ -109,7 +112,7 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
                 'name': 'BillerID',
                 'type': 'integer',
                 'description': 'The unique Biller ID',
-                'required': False
+                'required': True
             },
             {
                 'name': 'AccountNumber',

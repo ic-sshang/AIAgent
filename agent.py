@@ -5,8 +5,9 @@ from openai import AzureOpenAI
 from config import get_config
 from database import DatabaseConnection
 from tools import setup_tools
+from dotenv import load_dotenv
 
-
+load_dotenv()
 class AIAgent:
     """Azure OpenAI Agent with function calling capabilities"""
     
@@ -61,28 +62,51 @@ class AIAgent:
         # Get available functions
         functions = self.tool_registry.get_all_function_definitions()
         
-        # Initial API call
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=self.conversation_history,
-            tools=functions,
-            tool_choice="auto"
-        )
+        # Allow multiple rounds of tool calls for multi-step reasoning
+        # Scale max iterations based on number of tools (allow more complex chains)
+        max_iterations = min(10, max(5, len(functions) // 4))  # Dynamic limit: 5-10 based on tool count
+        iteration = 0
+        consecutive_no_progress = 0
         
-        response_message = response.choices[0].message
-        tool_calls = response_message.tool_calls
+        print(f"Starting chat with max {max_iterations} iterations for {len(functions)} available tools")
         
-        # Process function calls
-        if tool_calls:
+        while iteration < max_iterations:
+            iteration += 1
+            
+            # Make API call
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=self.conversation_history,
+                tools=functions,
+                tool_choice="auto"
+            )
+            
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
+            
+            # If no tool calls, we have the final answer
+            if not tool_calls:
+                assistant_message = response_message.content
+                self.conversation_history.append({
+                    "role": "assistant",
+                    "content": assistant_message
+                })
+                print(f"Completed in {iteration} iterations")
+                return assistant_message
+            
+            # Reset no-progress counter when we have tool calls
+            consecutive_no_progress = 0
+            
             # Add assistant's message with tool calls to history
             self.conversation_history.append(response_message)
             
             # Execute each tool call
+            any_success = False
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
                 
-                print(f"Calling tool: {function_name} with args: {function_args}")
+                print(f"[Iteration {iteration}/{max_iterations}] Calling tool: {function_name} with args: {function_args}")
                 
                 try:
                     # Execute the tool
@@ -93,9 +117,12 @@ class AIAgent:
                     
                     # Format results
                     function_response = self._format_results(results)
+                    print(f"[Iteration {iteration}/{max_iterations}] Tool response: {function_response[:200]}...")
+                    any_success = True
                     
                 except Exception as e:
                     function_response = f"Error executing {function_name}: {str(e)}"
+                    print(f"[Iteration {iteration}/{max_iterations}] Error: {function_response}")
                 
                 # Add function response to conversation
                 self.conversation_history.append({
@@ -105,27 +132,18 @@ class AIAgent:
                     "content": function_response
                 })
             
-            # Get final response from the model
-            final_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.conversation_history
-            )
+            # Track progress - if no tools succeeded, increment counter
+            if not any_success:
+                consecutive_no_progress += 1
+                if consecutive_no_progress >= 3:
+                    print(f"Stopping: No progress made in {consecutive_no_progress} consecutive iterations")
+                    return "I encountered errors while processing your request. Please try rephrasing your question."
             
-            final_message = final_response.choices[0].message.content
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": final_message
-            })
-            
-            return final_message
-        else:
-            # No function call needed
-            assistant_message = response_message.content
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": assistant_message
-            })
-            return assistant_message
+            # Continue loop to check if more tool calls are needed
+        
+        # If we hit max iterations, return a message
+        print(f"Reached max iterations ({max_iterations})")
+        return "I've completed multiple steps but reached the iteration limit. Please ask a follow-up question if you need more information."
     
     def _format_results(self, results: List[Any]) -> str:
         """Format database results as JSON string."""
@@ -160,7 +178,7 @@ class AIAgent:
 def main():
     """Example usage of the AI Agent"""
     # Set biller ID
-    biller_id = 123
+    biller_id = 1537
     
     # Create agent
     agent = AIAgent(biller_id)
@@ -169,7 +187,7 @@ def main():
     agent.add_system_message(
         "You are a helpful assistant that helps users query database information. "
         "Use the available tools to retrieve data from stored procedures when needed. "
-        "Always provide clear and concise responses."
+        f"Always provide clear and concise responses. BillerID is {agent.biller_id}. Use this BillerID for any database calls that require BillerID. Only use {agent.biller_id} for SP requires parameter BillerID Not the BillerUserID."
     )
     
     print("AI Agent started. Type 'quit' to exit.\n")
