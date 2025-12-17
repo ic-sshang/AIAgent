@@ -6,6 +6,8 @@ import uvicorn
 from agent import AIAgent
 from datetime import datetime
 
+from prompt import SYSTEM_PROMPT
+
 app = FastAPI(
     title="AI Agent API",
     description="REST API for AI Agent with function calling capabilities",
@@ -60,13 +62,10 @@ def get_agent(biller_id: int, session_id: Optional[str] = None) -> tuple[AIAgent
     
     # Create new agent
     agent = AIAgent(biller_id)
-    agent.add_system_message(
-        "You are a helpful assistant that helps users query database information. "
-        "Use the available tools to retrieve data from stored procedures when needed. "
-        f"Always provide clear and concise responses. BillerID is {biller_id}. "
-        f"Use this BillerID for any database calls that require BillerID. "
-        f"Only use {biller_id} for SP requires parameter BillerID Not the BillerUserID."
-    )
+    agent.add_system_message(SYSTEM_PROMPT.format(
+        biller_id=agent.biller_id,
+        current_date=datetime.now().strftime('%Y-%m-%d')
+    ))
     
     # Generate session ID
     if not session_id:

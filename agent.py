@@ -4,7 +4,9 @@ from typing import List, Dict, Any
 from openai import AzureOpenAI
 from config import get_config
 from database import DatabaseConnection
+from prompt import SYSTEM_PROMPT
 from tools import setup_tools
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -184,12 +186,16 @@ def main():
     agent = AIAgent(biller_id)
     
     # Add system message to set context
-    agent.add_system_message(
-        "You are a helpful assistant that helps users query database information. "
-        "Use the available tools to retrieve data from stored procedures when needed. "
-        f"Always provide clear and concise responses. BillerID is {agent.biller_id}. Use this BillerID for any database calls that require BillerID. Only use {agent.biller_id} for SP requires parameter BillerID Not the BillerUserID."
-    )
-    
+    # agent.add_system_message(
+    #     "You are a helpful assistant that helps users query database information. "
+    #     "Use the available tools to retrieve data from stored procedures when needed. If some parameters you need are not provided, ask the user for them, DO NOT make assumptions."
+    #     f"Always provide clear and concise responses. BillerID is {agent.biller_id}. Use this BillerID for any database calls that require BillerID. Only use {agent.biller_id} for SP requires parameter BillerID Not the BillerUserID."
+    #     f"current date is {datetime.now().strftime('%Y-%m-%d')}."
+    # )
+    agent.add_system_message(SYSTEM_PROMPT.format(
+        biller_id=agent.biller_id,
+        current_date=datetime.now().strftime('%Y-%m-%d')
+    ))
     print("AI Agent started. Type 'quit' to exit.\n")
     
     # Interactive loop

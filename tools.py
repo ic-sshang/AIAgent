@@ -61,6 +61,41 @@ class StoredProcedureTool(BaseTool):
             print(f"Executing query: {query} with no parameters")
             return self.db_connection.execute_query(query)
 
+class QueryTool(BaseTool):
+    """Tool for executing arbitrary SQL queries"""
+
+    def __init__(self, name: str, description: str, query: str, parameters: List[Dict[str, Any]], db_connection: DatabaseConnection):
+        """
+        Initialize a query tool.
+        
+        Args:
+            name: Tool name
+            description: Tool description
+            query: SQL query string
+            parameters: List of parameter definitions
+            db_connection: Database connection instance
+        """
+        super().__init__(name, description)
+        self.query = query
+        self._parameters = parameters
+        self.db_connection = db_connection
+
+    def execute(self, params: Optional[tuple] = None) -> List[Any]:
+        """
+        Execute an arbitrary SQL query.
+        
+        Args:
+            query: SQL query string
+            params: Optional[tuple] = None
+            
+        Returns:
+            Query results
+        """
+        print(f"Executing query: {self.query} with params: {params}")
+        return self.db_connection.execute_query(self.query, params)
+    
+    def get_parameters(self) -> List[Dict[str, Any]]:
+        return self._parameters
 
 def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
     """
@@ -104,6 +139,52 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
     ))
     
     registry.register(StoredProcedureTool(
+        name='SearchInvoices',
+        description='Search invoices by invoice number, account number, customer name, invoice type Id, etc.',
+        stored_procedure='dbo.selCustomerInvoiceSearchBP',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'AccountNumber',
+                'type': 'string',
+                'description': 'Account number to search for',
+                'required': False
+            },
+            {
+                'name': 'CustomerName',
+                'type': 'string',
+                'description': 'Customer name to search for',
+                'required': False
+            },
+            {
+                'name': 'InvoiceNumber',
+                'type': 'string',
+                'description': 'Invoice number to search for',
+                'required': False
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to search for',
+                'required': False
+            },
+            {
+                'name': 'Outstanding',
+                'type': 'boolean',
+                'description': 'Whether to filter for outstanding invoices only',
+                'required': False
+            }
+        ],
+        db_connection=db_connection
+    ))
+    
+
+    registry.register(StoredProcedureTool(
         name='SearchCustomers',
         description='Search customers by account number, customer name, email, invoice number',
         stored_procedure='dbo.selBillerCustomerSearchBP',
@@ -142,56 +223,298 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
         db_connection=db_connection
     ))
     
+    registry.register(StoredProcedureTool(
+        name='SearchPayments',
+        description='Search payments by account number, customer name, invoice number, approval indicator',
+        stored_procedure='dbo.selCustomerPaymentSearch',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'AccountNumber',
+                'type': 'string',
+                'description': 'Account number to search for',
+                'required': False
+            },
+            {
+                'name': 'CustomerName',
+                'type': 'string',
+                'description': 'Customer name to search for',
+                'required': False
+            },
+            {
+                'name': 'ApprovalInd',
+                'type': 'boolean',
+                'description': 'Approval indicator to search for',
+                'required': False
+            },
+            {
+                'name': 'InvoiceNumber',
+                'type': 'string',
+                'description': 'Invoice number to search for',
+                'required': False
+            }
+        ],
+        db_connection=db_connection
+    ))
+    
+    registry.register(StoredProcedureTool(
+        name='GetInvoiceCountAndVolume',
+        description='Get total invoice count and amount by date range, invoice type ID.',
+        stored_procedure='AcctRpt.GetInvoiceCountsAndVolume',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
+   
+    registry.register(StoredProcedureTool(
+        name='GetPaymentACHVolume',
+        description='Get total ACH payment amount by date range and invoice type ID.',
+        stored_procedure='AcctRpt.GetPaymentACHVolume',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
+   
+    registry.register(StoredProcedureTool(
+        name='GetPaymentACHCount',
+        description='Get total ACH payment count by date range and invoice type ID.',
+        stored_procedure='AcctRpt.GetPaymentACHCount',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
 
-    # need to update
-    # registry.register(StoredProcedureTool(
-    #     name='search_invoices',
-    #     description='Search invoices by status, amount range, or date range',
-    #     stored_procedure='dbo.sp_SearchInvoices',
-    #     parameters=[
-    #         {
-    #             'name': 'status',
-    #             'type': 'string',
-    #             'description': 'Invoice status',
-    #             'enum': ['paid', 'pending', 'overdue', 'cancelled'],
-    #             'required': False
-    #         },
-    #         {
-    #             'name': 'min_amount',
-    #             'type': 'number',
-    #             'description': 'Minimum invoice amount',
-    #             'required': False
-    #         },
-    #         {
-    #             'name': 'max_amount',
-    #             'type': 'number',
-    #             'description': 'Maximum invoice amount',
-    #             'required': False
-    #         }
-    #     ],
-    #     db_connection=db_connection
-    # ))
-    
-    # registry.register(StoredProcedureTool(
-    #     name='get_account_summary',
-    #     description='Get summary of account including balance, payment history, and outstanding amounts',
-    #     stored_procedure='dbo.sp_GetAccountSummary',
-    #     parameters=[
-    #         {
-    #             'name': 'account_id',
-    #             'type': 'integer',
-    #             'description': 'The unique account ID',
-    #             'required': True
-    #         }
-    #     ],
-    #     db_connection=db_connection
-    # ))
-    
-    # Add other types of tools here in the future
-    # registry.register(CustomTool(...))
-    # registry.register(APITool(...))
-    # registry.register(CalculationTool(...))
-    
+    registry.register(StoredProcedureTool(
+        name='GetPaymentCreditCardVolume',
+        description='Get total credit card payment amount by date range and invoice type ID.',
+        stored_procedure='AcctRpt.GetPaymentCCVolume',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
+
+    registry.register(StoredProcedureTool(
+        name='GetPaymentCreditCardCount',
+        description='Get total credit card payment count by date range and invoice type ID.',
+        stored_procedure='AcctRpt.GetPaymentCCCount',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
+
+    registry.register(StoredProcedureTool(
+        name='GetPaymentOnlineBankDirectCountAndVolume',
+        description='Get total online bank direct payment amount and count by date range and invoice type ID.',
+        stored_procedure='AcctRpt.GetPaymentObdCOUNTANDVolume',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            }
+        ],
+        db_connection=db_connection
+    ))
+
+    registry.register(StoredProcedureTool(
+        name='GetPaymentCOUNTANDVolumeByPaymentSource',
+        description='Get total payment amount and count by date range, invoice type ID and payment source ID. Must get payment source and invoice type from user, user might provide names, using those names to get IDs.',
+        stored_procedure='AcctRpt.GetPaymentCOUNTANDVolumeByPaymentSource',
+        parameters=[
+            {
+                'name': 'BillerID',
+                'type': 'integer',
+                'description': 'The unique Biller ID',
+                'required': True
+            },
+            {
+                'name': 'InvoiceTypeID',
+                'type': 'integer',
+                'description': 'Invoice type ID to filter by',
+                'required': True
+            },
+            {
+                'name': 'StartDate',
+                'type': 'string',
+                'description': 'Start date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+            {
+                'name': 'EndDate',
+                'type': 'string',
+                'description': 'End date to filter by in YYYY-MM-DD format',
+                'required': True
+            },
+             {
+                'name': 'PaymentSourceID',
+                'type': 'integer',
+                'description': 'The unique Payment Source ID',
+                'required': True
+            },
+        ],
+        db_connection=db_connection
+    ))
+
+    registry.register(QueryTool(
+        name='GetInvoiceTypes',
+        description='Execute a custom SQL query to get invoice type ID based on invoice type description',
+        query='select * from tblInvoiceType',
+        parameters=[],
+        db_connection=db_connection
+    ))
+
+    registry.register(QueryTool(
+        name='GetPaymentSources',
+        description='Execute a custom SQL query to get payment source ID based on payment source description',
+        query='select * from tblPaymentSource',
+        parameters=[],
+        db_connection=db_connection
+    ))
+
     return registry
 
 
