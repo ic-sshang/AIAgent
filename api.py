@@ -30,18 +30,18 @@ agent_sessions: Dict[str, AIAgent] = {}
 # Request/Response Models
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User's message/question")
-    biller_id: int = Field(..., description="Biller ID for database connection")
-    session_id: Optional[str] = Field(None, description="Session ID to maintain conversation history")
+    billerId: int = Field(..., description="Biller ID for database connection")
+    sessionId: Optional[str] = Field(None, description="Session ID to maintain conversation history")
 
 
 class ChatResponse(BaseModel):
     response: str = Field(..., description="Agent's response")
-    session_id: str = Field(..., description="Session ID for this conversation")
+    sessionId: str = Field(..., description="Session ID for this conversation")
     timestamp: str = Field(..., description="Response timestamp")
 
 
 class ResetRequest(BaseModel):
-    session_id: str = Field(..., description="Session ID to reset")
+    sessionId: str = Field(..., description="Session ID to reset")
 
 
 class HealthResponse(BaseModel):
@@ -105,14 +105,14 @@ async def chat(request: ChatRequest):
     """
     try:
         # Get or create agent
-        agent, session_id = get_agent(request.biller_id, request.session_id)
+        agent, sessionId = get_agent(request.billerId, request.sessionId)
         
         # Get response
         response = agent.chat(request.message)
         
         return ChatResponse(
             response=response,
-            session_id=session_id,
+            sessionId=sessionId,
             timestamp=datetime.now().isoformat()
         )
     
@@ -127,46 +127,46 @@ async def reset_conversation(request: ResetRequest):
     
     - **session_id**: Session ID to reset
     """
-    if request.session_id in agent_sessions:
-        agent_sessions[request.session_id].reset_conversation()
-        return {"status": "success", "message": f"Conversation reset for session {request.session_id}"}
+    if request.sessionId in agent_sessions:
+        agent_sessions[request.sessionId].reset_conversation()
+        return {"status": "success", "message": f"Conversation reset for session {request.sessionId}"}
     else:
         raise HTTPException(status_code=404, detail="Session not found")
 
 
-@app.delete("/session/{session_id}")
-async def delete_session(session_id: str):
+@app.delete("/session/{sessionId}")
+async def delete_session(sessionId: str):
     """
     Delete a session and cleanup resources.
     
     - **session_id**: Session ID to delete
     """
-    if session_id in agent_sessions:
+    if sessionId in agent_sessions:
         # Cleanup database connection
-        agent = agent_sessions[session_id]
+        agent = agent_sessions[sessionId]
         if hasattr(agent, 'db_connection') and agent.db_connection:
             agent.db_connection.disconnect()
         
-        del agent_sessions[session_id]
-        return {"status": "success", "message": f"Session {session_id} deleted"}
+        del agent_sessions[sessionId]
+        return {"status": "success", "message": f"Session {sessionId} deleted"}
     else:
         raise HTTPException(status_code=404, detail="Session not found")
 
 
-@app.get("/tools/{biller_id}", response_model=ToolsResponse)
-async def get_available_tools(biller_id: int):
+@app.get("/tools/{billerId}", response_model=ToolsResponse)
+async def get_available_tools(billerId: int):
     """
     Get list of available tools for a biller.
     
     - **biller_id**: Biller ID
     """
     try:
-        agent, session_id = get_agent(biller_id)
+        agent, sessionId = get_agent(billerId)
         tools = agent.tool_registry.list_tools()
         
         # Cleanup temporary agent
-        if session_id in agent_sessions:
-            del agent_sessions[session_id]
+        if sessionId in agent_sessions:
+            del agent_sessions[sessionId]
         
         return ToolsResponse(
             tools=tools,
