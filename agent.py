@@ -60,7 +60,7 @@ class AIAgent:
             "role": "user",
             "content": user_message
         })
-        
+
         # Get available functions
         functions = self.tool_registry.get_all_function_definitions()
         

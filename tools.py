@@ -113,7 +113,7 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
     # Register Stored Procedure Tools
     registry.register(StoredProcedureTool(
         name='CustomerProfileSummary',
-        description='Retrieves customer information including account number, username, email, address, invoice count, payment count and account balance',
+        description='Retrieves customer information including account number, username, email, address, invoice count, payment count and account balance, CustomerID has to get from SearchCustomers tool first.',
         stored_procedure='dbo.selCustomerProfileSummary',
         parameters=[
             {
@@ -462,7 +462,7 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
 
     registry.register(StoredProcedureTool(
         name='GetPaymentCOUNTANDVolumeByPaymentSource',
-        description='Get total payment amount and count by date range, invoice type ID and payment source ID. Must get payment source and invoice type from user, user might provide names, using those names to get IDs.',
+        description='Get total payment amount and count by date range, invoice type ID and payment source ID. Must get payment source and invoice type from user, not IDs. Invoice Type ID cannot be 0 or -1, Payment Source ID cannot be 0.',
         stored_procedure='AcctRpt.GetPaymentCOUNTANDVolumeByPaymentSource',
         parameters=[
             {
