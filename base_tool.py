@@ -51,12 +51,21 @@ class BaseTool(ABC):
         required = []
         
         for param in self.get_parameters():
-            properties[param['name']] = {
+            prop_def = {
                 'type': param['type'],
                 'description': param['description']
             }
+            
+            # Add optional properties if they exist
             if param.get('enum'):
-                properties[param['name']]['enum'] = param['enum']
+                prop_def['enum'] = param['enum']
+            if param.get('items'):  # For array types
+                prop_def['items'] = param['items']
+            if param.get('properties'):  # For object types
+                prop_def['properties'] = param['properties']
+            
+            properties[param['name']] = prop_def
+            
             if param.get('required', False):
                 required.append(param['name'])
         

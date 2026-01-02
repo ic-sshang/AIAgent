@@ -2,6 +2,7 @@ import json
 from typing import List, Dict, Any, Optional
 from base_tool import BaseTool, ToolRegistry
 from database import DatabaseConnection
+from excel_tool import ExcelExportFromQueryTool, ExcelExportTool
 
 
 class StoredProcedureTool(BaseTool):
@@ -514,6 +515,9 @@ def setup_tools(db_connection: DatabaseConnection) -> ToolRegistry:
         parameters=[],
         db_connection=db_connection
     ))
+
+    registry.register(ExcelExportTool(output_dir="exports", api_base_url="http://localhost:8000"))
+    registry.register(ExcelExportFromQueryTool(db_connection, output_dir="exports", api_base_url="http://localhost:8000"))
 
     return registry
 

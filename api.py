@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import uvicorn
+import os
 from agent import AIAgent
 from datetime import datetime
 
@@ -106,10 +108,8 @@ async def chat(request: ChatRequest):
     try:
         # Get or create agent
         agent, sessionId = get_agent(request.billerId, request.sessionId)
-        
         # Get response
         response = agent.chat(request.message)
-        
         return ChatResponse(
             response=response,
             sessionId=sessionId,
@@ -174,6 +174,25 @@ async def get_available_tools(billerId: int):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting tools: {str(e)}")
+
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    """
+    Download an exported Excel file.
+    
+    - **filename**: Name of the file to download (e.g., 'export_data.xlsx')
+    """
+    file_path = os.path.join("exports", filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 @app.get("/sessions")

@@ -39,6 +39,7 @@ class AIAgent:
         
         self.model = self.config.get('ai.model_name', 'gpt-4o-mini')
         self.conversation_history: List[Dict[str, Any]] = []
+        self.last_query_results: List[Dict[str, Any]] = []  # Cache for most recent query results
     
     def __del__(self):
         """Cleanup database connection."""
@@ -76,13 +77,15 @@ class AIAgent:
             iteration += 1
             
             # Make API call
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.conversation_history,
-                tools=functions,
-                tool_choice="auto"
-            )
-            
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=self.conversation_history,
+                    tools=functions,
+                    tool_choice="auto"
+                )
+            except Exception as e:
+                print(f"Error during OpenAI API call: {str(e)}")
             response_message = response.choices[0].message
             tool_calls = response_message.tool_calls
             
@@ -108,7 +111,12 @@ class AIAgent:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
                 
-                print(f"[Iteration {iteration}/{max_iterations}] Calling tool: {function_name} with args: {function_args}")
+                # Log arg details for debugging
+                if function_name == 'ExportToExcel' and 'data' in function_args:
+                    data_count = len(function_args['data']) if isinstance(function_args['data'], list) else 0
+                    print(f"[Iteration {iteration}/{max_iterations}] Calling tool: {function_name} with {data_count} data records")
+                else:
+                    print(f"[Iteration {iteration}/{max_iterations}] Calling tool: {function_name} with args: {function_args}")
                 
                 try:
                     # Execute the tool
@@ -116,6 +124,50 @@ class AIAgent:
                         function_name,
                         **function_args
                     )
+                    
+                    # Cache query results for potential Excel export
+                    # Convert to dict format for proper Excel export
+                    if isinstance(results, list) and len(results) > 0 and function_name != 'ExportToExcel':
+                        # Convert database rows to dictionaries
+                        cached_data = []
+                        for row in results:
+                            if hasattr(row, '__iter__') and not isinstance(row, (str, dict)):
+                                # It's a database row - convert to dict using cursor description
+                                if hasattr(self.db_connection.cursor, 'description') and self.db_connection.cursor.description:
+                                    columns = [column[0] for column in self.db_connection.cursor.description]
+                                    cached_data.append(dict(zip(columns, row)))
+                                else:
+                                    # Fallback to list if no column names
+                                    cached_data.append(list(row))
+                            elif isinstance(row, dict):
+                                # Already a dict
+                                cached_data.append(row)
+                            else:
+                                cached_data.append(row)
+                        
+                        self.last_query_results = cached_data
+                        print(f"[Cache] Stored {len(cached_data)} records from {function_name} as dictionaries")
+                    
+                    # For Excel export, if data is missing or incomplete, use cached results
+                    if function_name == 'ExportToExcel':
+                        data_arg = function_args.get('data', [])
+                        if not data_arg and self.last_query_results:
+                            print(f"[Excel] No data provided, using {len(self.last_query_results)} cached records")
+                            function_args['data'] = self.last_query_results
+                            results = self.tool_registry.execute(function_name, **function_args)
+                        elif isinstance(data_arg, list) and self.last_query_results:
+                            if len(data_arg) < len(self.last_query_results):
+                                print(f"[Excel] WARNING: Only {len(data_arg)} records provided, but cache has {len(self.last_query_results)} records")
+                                print(f"[Excel] Using complete cached data instead")
+                                function_args['data'] = self.last_query_results
+                                results = self.tool_registry.execute(function_name, **function_args)
+                    
+                    # Log result details
+                    if isinstance(results, list):
+                        print(f"[Iteration {iteration}/{max_iterations}] Tool returned {len(results)} records")
+                    elif isinstance(results, dict):
+                        if 'rows_exported' in results:
+                            print(f"[Iteration {iteration}/{max_iterations}] Excel export: {results.get('rows_exported', 0)} rows")
                     
                     # Format results
                     function_response = self._format_results(results)
@@ -147,10 +199,18 @@ class AIAgent:
         print(f"Reached max iterations ({max_iterations})")
         return "I've completed multiple steps but reached the iteration limit. Please ask a follow-up question if you need more information."
     
-    def _format_results(self, results: List[Any]) -> str:
-        """Format database results as JSON string."""
+    def _format_results(self, results: Any) -> str:
+        """Format tool results as JSON string."""
         if not results:
             return "No results found."
+        
+        # If results is already a dict (e.g., from Excel export tool), return it as-is
+        if isinstance(results, dict):
+            return json.dumps(results, default=str, indent=2)
+        
+        # If it's not a list, convert to string
+        if not isinstance(results, list):
+            return str(results)
         
         # Convert results to list of dicts if possible
         formatted_results = []
